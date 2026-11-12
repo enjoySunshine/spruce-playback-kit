@@ -27,6 +27,13 @@ import type { CodecType } from '../utils/codecs';
 
 type M3U8ParserFragments = Array<Fragment | null>;
 
+export type StartTag = {
+  // The value of the TIME-OFFSET attribute of the EXT-X-START tag
+  startTimeOffset: number;
+  // The value of the PRECISE attribute of the EXT-X-START tag
+  precise: boolean;
+};
+
 export type ParsedMultivariantPlaylist = {
   contentSteering: ContentSteeringOptions | null;
   levels: LevelParsed[];
@@ -35,6 +42,7 @@ export type ParsedMultivariantPlaylist = {
   sessionData: Record<string, AttrList> | null;
   sessionKeys: LevelKey[] | null;
   startTimeOffset: number | null;
+  startTag: StartTag | null;
   variableList: VariableMap | null;
   hasVariableRefs: boolean;
 };
@@ -117,6 +125,7 @@ export default class M3U8Parser {
       sessionData: null,
       sessionKeys: null,
       startTimeOffset: null,
+      startTag: null,
       variableList: null,
       hasVariableRefs,
     };
@@ -214,7 +223,10 @@ export default class M3U8Parser {
           }
           case 'START': {
             // #EXT-X-START
-            parsed.startTimeOffset = parseStartTimeOffset(attributes);
+            parsed.startTag = parseStartTag(attributes);
+            if (parsed.startTag) {
+              parsed.startTimeOffset = parsed.startTag.startTimeOffset;
+            }
             break;
           }
           default:
@@ -636,7 +648,10 @@ export default class M3U8Parser {
             break;
           }
           case 'START':
-            level.startTimeOffset = parseStartTimeOffset(value1);
+            level.startTag = parseStartTag(value1);
+            if (level.startTag) {
+              level.startTimeOffset = level.startTag.startTimeOffset;
+            }
             break;
           case 'MAP': {
             const mapAttrs = new AttrList(value1, level);
@@ -968,11 +983,14 @@ function parseKey(
   );
 }
 
-function parseStartTimeOffset(startAttributes: string): number | null {
+function parseStartTag(startAttributes: string): StartTag | null {
   const startAttrs = new AttrList(startAttributes);
   const startTimeOffset = startAttrs.decimalFloatingPoint('TIME-OFFSET');
   if (Number.isFinite(startTimeOffset)) {
-    return startTimeOffset;
+    return {
+      startTimeOffset,
+      precise: startAttrs.bool('PRECISE'),
+    };
   }
   return null;
 }

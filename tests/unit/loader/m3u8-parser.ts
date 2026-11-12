@@ -669,6 +669,36 @@ chop/segment-5.ts
     expect(result.targetduration).to.equal(14);
     expect(result.live).to.be.false;
     expect(result.startTimeOffset).to.equal(10.3);
+    expect(result.startTag).to.deep.equal({
+      startTimeOffset: 10.3,
+      precise: false,
+    });
+  });
+
+  it('parse level with precise start time offset', function () {
+    const level = `#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-PLAYLIST-TYPE:VOD
+#EXT-X-TARGETDURATION:14
+#EXT-X-START:TIME-OFFSET=10.3,PRECISE=YES
+#EXTINF:11.360,
+/frag(1)/video.ts
+#EXTINF:11.320,
+/frag(2)/video.ts
+#EXT-X-ENDLIST`;
+    const result = M3U8Parser.parseLevelPlaylist(
+      level,
+      'http://proxy-62.dailymotion.com/video.m3u8',
+      0,
+      PlaylistLevelType.MAIN,
+      0,
+      null,
+    );
+    expect(result.startTimeOffset).to.equal(10.3);
+    expect(result.startTag).to.deep.equal({
+      startTimeOffset: 10.3,
+      precise: true,
+    });
   });
 
   it('parse AES encrypted URLS, with a com.apple.streamingkeydelivery KEYFORMAT', function () {
@@ -1173,6 +1203,7 @@ https://sample-host/segment1.m4a`;
         sessionData: null,
         sessionKeys: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
         hasVariableRefs: false,
       },
@@ -2696,6 +2727,28 @@ http://proxy-62.x.com/sec(3ae40f708f79ca9471f52b86da76a3a8)/video/107/282/158282
         'http://www.x.com',
       );
       expect(result.startTimeOffset).to.equal(300);
+      expect(result.startTag).to.deep.equal({
+        startTimeOffset: 300,
+        precise: true,
+      });
+    });
+
+    it('parses EXT-X-START with PRECISE=NO', function () {
+      const manifest = `#EXTM3U
+#EXT-X-START:TIME-OFFSET=300.0,PRECISE=NO
+
+#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=836280,CODECS="mp4a.40.2,avc1.64001f",RESOLUTION=848x360,NAME="480"
+http://proxy-62.x.com/sec(3ae40f708f79ca9471f52b86da76a3a8)/video/107/282/158282701_mp4_h264_aac_hq.m3u8#cell=core`;
+
+      const result = M3U8Parser.parseMasterPlaylist(
+        manifest,
+        'http://www.x.com',
+      );
+      expect(result.startTimeOffset).to.equal(300);
+      expect(result.startTag).to.deep.equal({
+        startTimeOffset: 300,
+        precise: false,
+      });
     });
 
     it('parses negative EXT-X-START values in Multivariant Playlists', function () {
@@ -2709,6 +2762,10 @@ http://proxy-62.x.com/sec(3ae40f708f79ca9471f52b86da76a3a8)/video/107/282/158282
         'http://www.x.com',
       );
       expect(result.startTimeOffset).to.equal(-30);
+      expect(result.startTag).to.deep.equal({
+        startTimeOffset: -30,
+        precise: false,
+      });
     });
 
     it('result is null when EXT-X-START is not present', function () {
@@ -2721,6 +2778,7 @@ http://proxy-62.x.com/sec(3ae40f708f79ca9471f52b86da76a3a8)/video/107/282/158282
         'http://www.x.com',
       );
       expect(result.startTimeOffset).to.equal(null);
+      expect(result.startTag).to.equal(null);
     });
   });
 

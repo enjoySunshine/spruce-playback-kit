@@ -596,7 +596,7 @@ class AudioStreamController
 
     // compute start position if we are aligned with the main playlist
     if (!this.startFragRequested) {
-      this.setStartPosition(mainDetails, sliding);
+      this.setStartPosition(mainDetails, sliding, newDetails);
     }
 
     this.hls.trigger(Events.AUDIO_TRACK_UPDATED, {

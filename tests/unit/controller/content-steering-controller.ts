@@ -109,6 +109,7 @@ describe('ContentSteeringController', function () {
         sessionData: null,
         sessionKeys: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
       });
       expect(contentSteeringController.uri).to.equal(
@@ -134,6 +135,7 @@ describe('ContentSteeringController', function () {
         sessionData: null,
         sessionKeys: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
       });
       contentSteeringController.stopLoad();
@@ -159,6 +161,7 @@ describe('ContentSteeringController', function () {
         sessionData: null,
         sessionKeys: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
       });
       expect(contentSteeringController.stopLoad).to.be.a('function');
@@ -191,6 +194,7 @@ describe('ContentSteeringController', function () {
         sessionData: null,
         sessionKeys: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
       });
       expect(contentSteeringController.loader)
@@ -219,6 +223,7 @@ describe('ContentSteeringController', function () {
         sessionData: null,
         sessionKeys: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
       });
       expect(contentSteeringController.uri).to.equal(
@@ -275,6 +280,7 @@ http://a.example.com/md/prog_index.m3u8`;
         sessionData: null,
         sessionKeys: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
       };
       const levelController: any = (hls.levelController = new LevelController(
@@ -390,6 +396,7 @@ https://backup.example.com/video12/hi/video.m3u8`;
         sessionData: null,
         sessionKeys: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
       };
       const levelController: any = (hls.levelController = new LevelController(
@@ -549,6 +556,7 @@ https://backup.example.com/video12/hi/video.m3u8`;
         sessionData: null,
         sessionKeys: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
       };
       levelController = hls.levelController = new LevelController(

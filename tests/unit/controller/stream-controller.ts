@@ -22,7 +22,7 @@ import { PlaylistLevelType } from '../../../src/types/loader';
 import { AttrList } from '../../../src/utils/attr-list';
 import { mergeDetails } from '../../../src/utils/level-helper';
 import { logger } from '../../../src/utils/logger';
-import { mockFragments as mockFragmentArray } from '../../mocks/data';
+import { fragment, mockFragments as mockFragmentArray } from '../../mocks/data';
 import { TimeRangesMock } from '../../mocks/time-ranges.mock';
 import type BufferController from '../../../src/controller/buffer-controller';
 import type { FragmentTracker } from '../../../src/controller/fragment-tracker';
@@ -93,6 +93,7 @@ describe('StreamController', function () {
       sessionData,
       sessionKeys,
       startTimeOffset,
+      startTag,
       variableList,
     } = result;
     hls.trigger(Events.MANIFEST_LOADED, {
@@ -106,6 +107,7 @@ describe('StreamController', function () {
       sessionData,
       sessionKeys,
       startTimeOffset,
+      startTag,
       variableList,
     });
     const playlistLoader = (hls as any).networkControllers[0];
@@ -134,7 +136,7 @@ describe('StreamController', function () {
 
     it('should use EXT-X-START from Multivariant Playlist when not overridden by startPosition', function () {
       loadManifest(`#EXTM3U
-  #EXT-X-START:TIME-OFFSET=130.5
+  #EXT-X-START:TIME-OFFSET=130.5,PRECISE=YES
   #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=836280,RESOLUTION=848x360,NAME="480"
   http://www.example.com/media.m3u8`);
       assertStreamControllerStarted(streamController);
@@ -142,7 +144,24 @@ describe('StreamController', function () {
       const details = new LevelDetails('');
       details.live = false;
       details.totalduration = 200;
-      details.fragments.push({} as any);
+      details.fragments.push(
+        fragment({
+          start: 0,
+          duration: 100,
+          sn: 0,
+          cc: 0,
+          level: 0,
+          programDateTime: 0,
+        }),
+        fragment({
+          start: 100,
+          duration: 100,
+          sn: 1,
+          cc: 0,
+          level: 0,
+          programDateTime: 0,
+        }),
+      );
       hls.trigger(Events.LEVEL_LOADED, {
         details,
         id: 0,
@@ -157,9 +176,56 @@ describe('StreamController', function () {
           bitrate: 500000,
         }),
       });
+      // PRECISE=YES keeps the requested TIME-OFFSET rather than a segment boundary
       expect(streamController['startPosition']).to.equal(130.5);
       expect(streamController['nextLoadPosition']).to.equal(130.5);
       expect(streamController['lastCurrentTime']).to.equal(130.5);
+    });
+
+    it('should snap a non-precise EXT-X-START from Multivariant Playlist to a segment boundary', function () {
+      loadManifest(`#EXTM3U
+  #EXT-X-START:TIME-OFFSET=130.5
+  #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=836280,RESOLUTION=848x360,NAME="480"
+  http://www.example.com/media.m3u8`);
+      assertStreamControllerStarted(streamController);
+      const details = new LevelDetails('');
+      details.live = false;
+      details.totalduration = 200;
+      details.fragments.push(
+        fragment({
+          start: 0,
+          duration: 100,
+          sn: 0,
+          cc: 0,
+          level: 0,
+          programDateTime: 0,
+        }),
+        fragment({
+          start: 100,
+          duration: 100,
+          sn: 1,
+          cc: 0,
+          level: 0,
+          programDateTime: 0,
+        }),
+      );
+      hls.trigger(Events.LEVEL_LOADED, {
+        details,
+        id: 0,
+        level: 0,
+        networkDetails: new Response('ok'),
+        stats: new LoadStats(),
+        deliveryDirectives: null,
+        levelInfo: new Level({
+          name: '',
+          url: '',
+          attrs,
+          bitrate: 500000,
+        }),
+      });
+      expect(streamController['startPosition']).to.equal(100);
+      expect(streamController['nextLoadPosition']).to.equal(100);
+      expect(streamController['lastCurrentTime']).to.equal(100);
     });
 
     it('should use EXT-X-START from Multivariant Playlist when not overridden by startPosition with live playlists', function () {
@@ -173,6 +239,7 @@ describe('StreamController', function () {
         sessionData,
         sessionKeys,
         startTimeOffset,
+        startTag,
         variableList,
       } = result;
       hls.trigger(Events.MANIFEST_LOADED, {
@@ -186,6 +253,7 @@ describe('StreamController', function () {
         sessionData,
         sessionKeys,
         startTimeOffset,
+        startTag,
         variableList,
       });
       assertStreamControllerStarted(streamController);
@@ -194,7 +262,33 @@ describe('StreamController', function () {
       const details = new LevelDetails('');
       details.live = true;
       details.totalduration = 30;
-      details.fragments.push({ start: 0, end: details.totalduration } as any);
+      // -12s resolves to 18s (30 - 12), which lies in the third segment
+      details.fragments.push(
+        fragment({
+          start: 0,
+          duration: 10,
+          sn: 0,
+          cc: 0,
+          level: 0,
+          programDateTime: 0,
+        }),
+        fragment({
+          start: 10,
+          duration: 10,
+          sn: 1,
+          cc: 0,
+          level: 0,
+          programDateTime: 0,
+        }),
+        fragment({
+          start: 20,
+          duration: 10,
+          sn: 2,
+          cc: 0,
+          level: 0,
+          programDateTime: 0,
+        }),
+      );
       hls.trigger(Events.LEVEL_LOADED, {
         details,
         id: 0,
@@ -209,9 +303,353 @@ describe('StreamController', function () {
           bitrate: 500000,
         }),
       });
+      // The non-precise offset snaps to the start of the segment containing 18s
+      expect(streamController['startPosition']).to.equal(10);
+      expect(streamController['nextLoadPosition']).to.equal(10);
+      expect(streamController['lastCurrentTime']).to.equal(10);
+    });
+
+    it('should keep a precise negative EXT-X-START from Multivariant Playlist with live playlists', function () {
+      loadManifest(`#EXTM3U
+  #EXT-X-START:TIME-OFFSET=-12.0,PRECISE=YES
+  #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=836280,RESOLUTION=848x360,NAME="480"
+  http://www.example.com/media.m3u8`);
+      assertStreamControllerStarted(streamController);
+
+      const details = new LevelDetails('');
+      details.live = true;
+      details.totalduration = 30;
+      details.fragments.push(
+        fragment({
+          start: 0,
+          duration: 10,
+          sn: 0,
+          cc: 0,
+          level: 0,
+          programDateTime: 0,
+        }),
+        fragment({
+          start: 10,
+          duration: 10,
+          sn: 1,
+          cc: 0,
+          level: 0,
+          programDateTime: 0,
+        }),
+        fragment({
+          start: 20,
+          duration: 10,
+          sn: 2,
+          cc: 0,
+          level: 0,
+          programDateTime: 0,
+        }),
+      );
+      hls.trigger(Events.LEVEL_LOADED, {
+        details,
+        id: 0,
+        level: 0,
+        networkDetails: new Response('ok'),
+        stats: new LoadStats(),
+        deliveryDirectives: null,
+        levelInfo: new Level({
+          name: '',
+          url: '',
+          attrs,
+          bitrate: 500000,
+        }),
+      });
+      // PRECISE=YES keeps the resolved offset (30 - 12) rather than a segment boundary
       expect(streamController['startPosition']).to.equal(18);
       expect(streamController['nextLoadPosition']).to.equal(18);
       expect(streamController['lastCurrentTime']).to.equal(18);
+    });
+
+    // Fragment boundaries used by the EXT-X-START scenarios below:
+    // video: [0,3.5) [3.5,7.5) [7.5,10) [10,16), totalduration 16
+    // audio: [0,6) [6,12) [12,16), totalduration 16
+    const videoFragmentStarts = [0, 3.5, 7.5, 10];
+    const audioFragmentStarts = [0, 6, 12];
+    const makeDetails = (
+      fragmentStarts: number[],
+      durations: number[],
+      totalDuration: number,
+      startTag: { startTimeOffset: number; precise: boolean } | null = null,
+    ) => {
+      const details = new LevelDetails('');
+      details.live = false;
+      details.totalduration = totalDuration;
+      details.startTag = startTag;
+      details.startTimeOffset = startTag ? startTag.startTimeOffset : null;
+      fragmentStarts.forEach((start, i) => {
+        details.fragments.push(
+          fragment({
+            start,
+            duration: durations[i],
+            sn: i,
+            cc: 0,
+            level: 0,
+            programDateTime: 0,
+          }),
+        );
+      });
+      return details;
+    };
+    const videoDetails = (
+      startTag: { startTimeOffset: number; precise: boolean } | null = null,
+    ) => makeDetails(videoFragmentStarts, [3.5, 4, 2.5, 6], 16, startTag);
+    const audioDetails = (
+      startTag: { startTimeOffset: number; precise: boolean } | null = null,
+    ) => makeDetails(audioFragmentStarts, [6, 6, 4], 16, startTag);
+    const triggerLevelLoaded = (details: LevelDetails) => {
+      hls.trigger(Events.LEVEL_LOADED, {
+        details,
+        id: 0,
+        level: 0,
+        networkDetails: new Response('ok'),
+        stats: new LoadStats(),
+        deliveryDirectives: null,
+        levelInfo: new Level({
+          name: '',
+          url: '',
+          attrs,
+          bitrate: 500000,
+        }),
+      });
+    };
+    const loadStartManifest = (timeOffset: string) =>
+      loadManifest(`#EXTM3U
+  #EXT-X-START:${timeOffset}
+  #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=836280
+  http://www.example.com/media.m3u8`);
+
+    describe('EXT-X-START entry position', function () {
+      it('snaps a non-precise positive offset to the start of its segment (9s -> 7.5s)', function () {
+        loadStartManifest('TIME-OFFSET=9');
+        triggerLevelLoaded(videoDetails());
+        expect(streamController['startPosition']).to.equal(7.5);
+      });
+
+      it('keeps an offset that already lands on a segment boundary (10s -> 10s)', function () {
+        loadStartManifest('TIME-OFFSET=10');
+        triggerLevelLoaded(videoDetails());
+        expect(streamController['startPosition']).to.equal(10);
+      });
+
+      it('snaps a mid-segment offset back to the segment start (10.1s -> 10s)', function () {
+        loadStartManifest('TIME-OFFSET=10.1');
+        triggerLevelLoaded(videoDetails());
+        expect(streamController['startPosition']).to.equal(10);
+      });
+
+      it('stops at the precise offset when PRECISE=YES', function () {
+        loadStartManifest('TIME-OFFSET=10.1,PRECISE=YES');
+        triggerLevelLoaded(videoDetails());
+        expect(streamController['startPosition']).to.equal(10.1);
+      });
+
+      it('snaps a boundary offset without PRECISE (7.5s -> 7.5s)', function () {
+        loadStartManifest('TIME-OFFSET=7.5');
+        triggerLevelLoaded(videoDetails());
+        expect(streamController['startPosition']).to.equal(7.5);
+      });
+
+      it('clamps a positive offset beyond the end, then snaps (100s -> 16s -> 10s)', function () {
+        loadStartManifest('TIME-OFFSET=100');
+        triggerLevelLoaded(videoDetails());
+        expect(streamController['startPosition']).to.equal(10);
+      });
+
+      it('clamps a precise offset beyond the end to the end (100s -> 16s)', function () {
+        loadStartManifest('TIME-OFFSET=100,PRECISE=YES');
+        triggerLevelLoaded(videoDetails());
+        expect(streamController['startPosition']).to.equal(16);
+      });
+
+      it('resolves a negative offset from the end and snaps (-3s -> 13s -> 10s)', function () {
+        loadStartManifest('TIME-OFFSET=-3');
+        triggerLevelLoaded(videoDetails());
+        expect(streamController['startPosition']).to.equal(10);
+      });
+
+      it('clamps a negative offset beyond the start to the start (-100s -> 0s)', function () {
+        loadStartManifest('TIME-OFFSET=-100');
+        triggerLevelLoaded(videoDetails());
+        expect(streamController['startPosition']).to.equal(0);
+      });
+    });
+
+    describe('EXT-X-START with a separate audio rendition', function () {
+      it('snaps each rendition to its own segment boundaries (9s -> video 7.5s, audio 6s)', function () {
+        loadStartManifest('TIME-OFFSET=9');
+        triggerLevelLoaded(videoDetails());
+        expect(streamController['startPosition']).to.equal(7.5);
+
+        const audioStreamController = hls['audioStreamController']!;
+        audioStreamController['startTag'] = {
+          startTimeOffset: 9,
+          precise: false,
+        };
+        audioStreamController['startTimeOffset'] = 9;
+        audioStreamController['startPosition'] = -1;
+        audioStreamController['setStartPosition'](audioDetails(), 0);
+        expect(audioStreamController['startPosition']).to.equal(6);
+      });
+
+      it('snaps the audio rendition independently (10.1s -> 6s)', function () {
+        const audioStreamController = hls['audioStreamController']!;
+        audioStreamController['startTag'] = {
+          startTimeOffset: 10.1,
+          precise: false,
+        };
+        audioStreamController['startTimeOffset'] = 10.1;
+        audioStreamController['startPosition'] = -1;
+        audioStreamController['setStartPosition'](audioDetails(), 0);
+        expect(audioStreamController['startPosition']).to.equal(6);
+      });
+
+      it('snaps negative offsets per rendition (-3s -> 13s -> audio 12s)', function () {
+        const audioStreamController = hls['audioStreamController']!;
+        audioStreamController['startTag'] = {
+          startTimeOffset: -3,
+          precise: false,
+        };
+        audioStreamController['startTimeOffset'] = -3;
+        audioStreamController['startPosition'] = -1;
+        audioStreamController['setStartPosition'](audioDetails(), 0);
+        expect(audioStreamController['startPosition']).to.equal(12);
+      });
+
+      [9, 10.1, 13].forEach((offset) => {
+        it(`stops the audio rendition at the precise offset ${offset}s`, function () {
+          const audioStreamController = hls['audioStreamController']!;
+          audioStreamController['startTag'] = {
+            startTimeOffset: offset,
+            precise: true,
+          };
+          audioStreamController['startTimeOffset'] = offset;
+          audioStreamController['startPosition'] = -1;
+          audioStreamController['setStartPosition'](audioDetails(), 0);
+          expect(audioStreamController['startPosition']).to.equal(offset);
+        });
+      });
+
+      it('snaps using the audio rendition boundaries even when timing comes from the main playlist', function () {
+        const audioStreamController = hls['audioStreamController']!;
+        audioStreamController['startTag'] = {
+          startTimeOffset: 9,
+          precise: false,
+        };
+        audioStreamController['startTimeOffset'] = 9;
+        audioStreamController['startPosition'] = -1;
+        // Mirrors AudioStreamController: main details drive offset/clamping,
+        // while the audio track's own details provide the segment boundary.
+        audioStreamController['setStartPosition'](
+          videoDetails(),
+          0,
+          audioDetails(),
+        );
+        expect(audioStreamController['startPosition']).to.equal(6);
+      });
+
+      it('uses the audio rendition boundary for a mid-segment precise-less offset (10.1s -> 6s)', function () {
+        const audioStreamController = hls['audioStreamController']!;
+        audioStreamController['startTag'] = {
+          startTimeOffset: 10.1,
+          precise: false,
+        };
+        audioStreamController['startTimeOffset'] = 10.1;
+        audioStreamController['startPosition'] = -1;
+        audioStreamController['setStartPosition'](
+          videoDetails(),
+          0,
+          audioDetails(),
+        );
+        expect(audioStreamController['startPosition']).to.equal(6);
+      });
+
+      it('keeps the precise offset regardless of rendition boundaries', function () {
+        const audioStreamController = hls['audioStreamController']!;
+        audioStreamController['startTag'] = {
+          startTimeOffset: 10.1,
+          precise: true,
+        };
+        audioStreamController['startTimeOffset'] = 10.1;
+        audioStreamController['startPosition'] = -1;
+        audioStreamController['setStartPosition'](
+          videoDetails(),
+          0,
+          audioDetails(),
+        );
+        expect(audioStreamController['startPosition']).to.equal(10.1);
+      });
+    });
+
+    describe('EXT-X-START in Multivariant vs Media Playlists', function () {
+      it('prefers the Multivariant Playlist START over the Media Playlist START', function () {
+        loadStartManifest('TIME-OFFSET=9');
+        // The Media Playlist requests 2s, which must be ignored
+        triggerLevelLoaded(
+          videoDetails({ startTimeOffset: 2, precise: false }),
+        );
+        expect(streamController['startPosition']).to.equal(7.5);
+
+        const audioStreamController = hls['audioStreamController']!;
+        audioStreamController['startTag'] = {
+          startTimeOffset: 9,
+          precise: false,
+        };
+        audioStreamController['startTimeOffset'] = 9;
+        audioStreamController['startPosition'] = -1;
+        audioStreamController['setStartPosition'](
+          audioDetails({ startTimeOffset: 2, precise: false }),
+          0,
+        );
+        expect(audioStreamController['startPosition']).to.equal(6);
+      });
+
+      it('uses the precise Multivariant Playlist START for both renditions', function () {
+        loadStartManifest('TIME-OFFSET=9,PRECISE=YES');
+        triggerLevelLoaded(
+          videoDetails({ startTimeOffset: 2, precise: false }),
+        );
+        expect(streamController['startPosition']).to.equal(9);
+
+        const audioStreamController = hls['audioStreamController']!;
+        audioStreamController['startTag'] = {
+          startTimeOffset: 9,
+          precise: true,
+        };
+        audioStreamController['startTimeOffset'] = 9;
+        audioStreamController['startPosition'] = -1;
+        audioStreamController['setStartPosition'](
+          audioDetails({ startTimeOffset: 2, precise: false }),
+          0,
+        );
+        expect(audioStreamController['startPosition']).to.equal(9);
+      });
+
+      it('uses the Media Playlist START when no Multivariant Playlist START exists (2s -> 0s)', function () {
+        // No START tag in the Multivariant Playlist
+        loadManifest(`#EXTM3U
+  #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=836280
+  http://www.example.com/media.m3u8`);
+        expect(streamController['startTag']).to.equal(null);
+        triggerLevelLoaded(
+          videoDetails({ startTimeOffset: 2, precise: false }),
+        );
+        expect(streamController['startPosition']).to.equal(0);
+
+        const audioStreamController = hls['audioStreamController']!;
+        audioStreamController['startTag'] = null;
+        audioStreamController['startTimeOffset'] = null;
+        audioStreamController['startPosition'] = -1;
+        audioStreamController['setStartPosition'](
+          audioDetails({ startTimeOffset: 2, precise: false }),
+          0,
+        );
+        expect(audioStreamController['startPosition']).to.equal(0);
+      });
     });
   });
 

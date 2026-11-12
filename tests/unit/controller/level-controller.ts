@@ -134,6 +134,7 @@ describe('LevelController', function () {
       sessionKeys: null,
       contentSteering: null,
       startTimeOffset: null,
+      startTag: null,
       variableList: null,
       stats: new LoadStats(),
       subtitles: [],
@@ -207,6 +208,7 @@ describe('LevelController', function () {
         sessionKeys: null,
         contentSteering: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
       });
 
@@ -259,6 +261,7 @@ describe('LevelController', function () {
         sessionKeys: null,
         contentSteering: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
         stats,
         url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
@@ -311,6 +314,7 @@ http://bar.example.com/audio-only/prog_index.m3u8`,
         sessionKeys: null,
         contentSteering: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
       });
       const {
@@ -357,6 +361,7 @@ http://bar.example.com/audio-only/prog_index.m3u8`,
         sessionKeys: null,
         contentSteering: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
         stats,
         url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
@@ -404,6 +409,7 @@ http://bar.example.com/audio-only/prog_index.m3u8`,
         sessionKeys: null,
         contentSteering: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
         stats,
         url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
@@ -446,6 +452,7 @@ http://bar.example.com/audio-only/prog_index.m3u8`,
         sessionKeys: null,
         contentSteering: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
         stats,
         url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
@@ -486,6 +493,7 @@ http://bar.example.com/audio-only/prog_index.m3u8`,
         sessionKeys: null,
         contentSteering: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
         stats: new LoadStats(),
         url: 'foo',
@@ -769,6 +777,7 @@ http://bar.example.com/md/prog_index.m3u8`,
         sessionKeys: null,
         contentSteering: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
       });
       const {
@@ -834,6 +843,7 @@ http://bar.example.com/md/prog_index.m3u8`;
         sessionKeys: null,
         contentSteering: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
       });
       const {
@@ -898,6 +908,7 @@ http://bar.example.com/md/prog_index.m3u8`;
           sessionKeys: null,
           contentSteering: null,
           startTimeOffset: null,
+          startTag: null,
           variableList: null,
         });
         const { name, payload } = hls.getEventData(0) as {
@@ -1042,6 +1053,7 @@ http://bar.example.com/md/prog_index.m3u8`;
         sessionKeys: null,
         contentSteering: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
       });
       const { name, payload } = hls.getEventData(0) as {
@@ -1137,6 +1149,7 @@ http://bar.example.com/md/prog_index.m3u8`;
         sessionKeys: null,
         contentSteering: null,
         startTimeOffset: null,
+        startTag: null,
         variableList: null,
       });
       const { name, payload } = hls.getEventData(0) as {
@@ -1313,6 +1326,7 @@ describe('LevelController - nextLoadLevel', function () {
       sessionKeys: null,
       contentSteering: null,
       startTimeOffset: null,
+      startTag: null,
       variableList: null,
       stats: new LoadStats(),
       subtitles: [],

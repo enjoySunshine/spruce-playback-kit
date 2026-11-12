@@ -431,6 +431,7 @@ class PlaylistLoader implements NetworkComponentAPI {
       sessionData,
       sessionKeys,
       startTimeOffset,
+      startTag,
       variableList,
     } = parsedResult;
 
@@ -525,6 +526,7 @@ class PlaylistLoader implements NetworkComponentAPI {
       sessionData,
       sessionKeys,
       startTimeOffset,
+      startTag,
       variableList,
     });
   }
@@ -580,7 +582,8 @@ class PlaylistLoader implements NetworkComponentAPI {
         sessionData: null,
         sessionKeys: null,
         contentSteering: null,
-        startTimeOffset: null,
+        startTimeOffset: levelDetails.startTimeOffset,
+        startTag: levelDetails.startTag,
         variableList: null,
       });
     }

@@ -1,6 +1,7 @@
 import type { DateRange } from './date-range';
 import type { Fragment, MediaFragment, Part } from './fragment';
 import type { LevelKey } from './level-key';
+import type { StartTag } from './m3u8-parser';
 import type { VariableMap } from '../types/level';
 import type { AttrList } from '../utils/attr-list';
 import type { KeySystemFormats } from '../utils/mediakeys-helper';
@@ -32,6 +33,7 @@ export class LevelDetails {
   public startCC: number = 0;
   public startSN: number = 0;
   public startTimeOffset: number | null = null;
+  public startTag: StartTag | null = null;
   public targetduration: number = 0;
   public totalduration: number = 0;
   public type: string | null = null;

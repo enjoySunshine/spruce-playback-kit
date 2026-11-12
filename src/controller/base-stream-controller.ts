@@ -23,6 +23,7 @@ import { LoadError } from '../loader/fragment-loader';
 import TaskLoop from '../task-loop';
 import { PlaylistLevelType } from '../types/loader';
 import { ChunkMetadata } from '../types/transmuxer';
+import BinarySearch from '../utils/binary-search';
 import { BufferHelper } from '../utils/buffer-helper';
 import { alignStream } from '../utils/discontinuities';
 import {
@@ -56,6 +57,7 @@ import type Hls from '../hls';
 import type { FragmentLoadProgressCallback } from '../loader/fragment-loader';
 import type KeyLoader from '../loader/key-loader';
 import type { LevelDetails } from '../loader/level-details';
+import type { StartTag } from '../loader/m3u8-parser';
 import type { SourceBufferName } from '../types/buffer';
 import type { NetworkComponentAPI } from '../types/component-api';
 import type {
@@ -118,6 +120,7 @@ export default class BaseStreamController
   protected nextLoadPosition: number = 0;
   protected startPosition: number = -1;
   protected startTimeOffset: number | null = null;
+  protected startTag: StartTag | null = null;
   protected retryDate: number = 0;
   protected levels: Array<Level> | null = null;
   protected fragmentLoader: FragmentLoader;
@@ -390,6 +393,8 @@ export default class BaseStreamController
         null;
     this.lastCurrentTime = this.nextLoadPosition = 0;
     this.startPosition = -1;
+    this.startTimeOffset = null;
+    this.startTag = null;
     this.startFragRequested = false;
   }
 
@@ -513,6 +518,7 @@ export default class BaseStreamController
     data: ManifestLoadedData,
   ): void {
     this.startTimeOffset = data.startTimeOffset;
+    this.startTag = data.startTag;
   }
 
   protected onHandlerDestroying() {
@@ -1898,6 +1904,43 @@ export default class BaseStreamController
   }
 
   /*
+  Returns the start time of the Media Segment containing `position`, or null
+  when the playlist has no fragments with finite start times. Used to honor an
+  EXT-X-START tag without PRECISE=YES, which requires playback to begin at the
+  start of the segment that contains the requested TIME-OFFSET.
+   */
+  protected getStartFragmentBoundary(
+    position: number,
+    levelDetails: LevelDetails,
+  ): number | null {
+    const fragments = levelDetails.fragments;
+    if (!fragments.length) {
+      return null;
+    }
+    // Clamp to the last segment when the requested position is past the end
+    const containingFragment =
+      BinarySearch.search(fragments, (candidate: MediaFragment): -1 | 0 | 1 => {
+        if (!Number.isFinite(candidate.start)) {
+          return 0;
+        }
+        if (candidate.start > position) {
+          return -1;
+        }
+        const duration = Number.isFinite(candidate.duration)
+          ? candidate.duration
+          : (candidate.end ?? candidate.start) - candidate.start;
+        const end = candidate.start + duration;
+        if (Number.isFinite(end) && end <= position) {
+          return 1;
+        }
+        return 0;
+      }) || fragments[fragments.length - 1];
+    return Number.isFinite(containingFragment?.start)
+      ? (containingFragment.start as number)
+      : null;
+  }
+
+  /*
   This method finds the best matching fragment given the provided position.
    */
   protected getFragmentAtPosition(
@@ -2034,7 +2077,14 @@ export default class BaseStreamController
     );
   }
 
-  protected setStartPosition(details: LevelDetails, sliding: number) {
+  protected setStartPosition(
+    details: LevelDetails,
+    sliding: number,
+    // Alternate renditions align their timeline with the main playlist, so the
+    // start position is computed from `details`, but segment-boundary snapping
+    // (non-precise EXT-X-START) must use the rendition's own fragments.
+    boundaryDetails: LevelDetails = details,
+  ) {
     // compute start position if set to -1. use it straight away if value is defined
     let startPosition = this.startPosition;
     if (startPosition < sliding) {
@@ -2044,10 +2094,13 @@ export default class BaseStreamController
     if (startPosition === -1) {
       // Use Playlist EXT-X-START:TIME-OFFSET when set
       // Prioritize Multivariant Playlist offset so that main, audio, and subtitle stream-controller start times match
-      const offsetInMultivariantPlaylist = this.startTimeOffset !== null;
-      const startTimeOffset = offsetInMultivariantPlaylist
-        ? this.startTimeOffset
-        : details.startTimeOffset;
+      const startInMultivariantPlaylist = this.startTag !== null;
+      const startTag = startInMultivariantPlaylist
+        ? this.startTag
+        : details.startTag;
+      const startTimeOffset = startTag
+        ? startTag.startTimeOffset
+        : this.startTimeOffset;
       if (startTimeOffset !== null && Number.isFinite(startTimeOffset)) {
         startPosition = sliding + startTimeOffset;
         if (startTimeOffset < 0) {
@@ -2057,10 +2110,21 @@ export default class BaseStreamController
           Math.max(sliding, startPosition),
           sliding + details.totalduration,
         );
+        // Unless PRECISE=YES, begin playback at the start of the Media Segment
+        // containing the requested position (RFC 8216, EXT-X-START).
+        if (!startTag?.precise) {
+          const segmentStart = this.getStartFragmentBoundary(
+            startPosition,
+            boundaryDetails,
+          );
+          if (Number.isFinite(segmentStart)) {
+            startPosition = segmentStart as number;
+          }
+        }
         this.log(
-          `Setting startPosition to ${startPosition} for start time offset ${startTimeOffset} found in ${
-            offsetInMultivariantPlaylist ? 'multivariant' : 'media'
-          } playlist`,
+          `Setting startPosition to ${startPosition} for start time offset ${startTimeOffset}${
+            startTag?.precise ? ' (precise)' : ''
+          } found in ${startInMultivariantPlaylist ? 'multivariant' : 'media'} playlist`,
         );
         this.startPosition = startPosition;
       } else if (details.live) {

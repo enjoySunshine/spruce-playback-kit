@@ -327,7 +327,7 @@ export class SubtitleStreamController
 
     // compute start position if we are aligned with the main playlist
     if (mainDetails && !this.startFragRequested) {
-      this.setStartPosition(mainDetails, sliding);
+      this.setStartPosition(mainDetails, sliding, newDetails);
     }
 
     if (trackId !== currentTrackId) {

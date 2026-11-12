@@ -47,6 +47,7 @@ import type { KeyLoaderInfo } from '../loader/key-loader';
 import type { LevelDetails } from '../loader/level-details';
 import type { LevelKey } from '../loader/level-key';
 import type { LoadStats } from '../loader/load-stats';
+import type { StartTag } from '../loader/m3u8-parser';
 import type { AttrList } from '../utils/attr-list';
 import type { BufferInfo } from '../utils/buffer-helper';
 import type { TimestampOffset } from '../utils/timescale-conversion';
@@ -142,6 +143,7 @@ export interface ManifestLoadedData {
   sessionData: Record<string, AttrList> | null;
   sessionKeys: LevelKey[] | null;
   startTimeOffset: number | null;
+  startTag: StartTag | null;
   stats: LoaderStats;
   subtitles?: MediaPlaylist[];
   url: string;

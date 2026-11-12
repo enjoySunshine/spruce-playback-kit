@@ -290,6 +290,7 @@ export class IFrameController extends Logger {
       iframeVariants: [],
       sessionData: null,
       startTimeOffset: null,
+      startTag: null,
       stats,
       networkDetails: null,
       url,

@@ -65,6 +65,7 @@ describe('PlaylistLoader tests', function () {
           sessionData: null,
           sessionKeys: null,
           startTimeOffset: null,
+          startTag: null,
           variableList: null,
         });
         expect(data.levels, 'levels.length').to.have.lengthOf(30);
